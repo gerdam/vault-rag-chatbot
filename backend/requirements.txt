@@ -1,0 +1,5 @@
+chromadb
+anthropic
+fastapi
+uvicorn[standard]
+python-dotenv

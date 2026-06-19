@@ -1,0 +1,22 @@
+# === Secrets (NIEMALS committen) ===
+.env
+*.env
+!.env.example          # Vorlage OHNE echten Key darf rein
+
+# === Python ===
+backend/.venv/
+__pycache__/
+*.pyc
+
+# === ChromaDB-Index (138 MB Daten, gehoeren nicht in Git) ===
+backend/chroma_data/
+
+# === Node / Frontend ===
+frontend/node_modules/
+frontend/dist/
+
+# === OS / Editor ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

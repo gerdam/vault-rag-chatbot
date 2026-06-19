@@ -1,0 +1,143 @@
+/* #root aus index.css fuer Chat-Layout schmaler machen */
+#root {
+  width: 760px;
+  text-align: left;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+header {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  font-size: 28px;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.untertitel {
+  color: var(--text);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* Scrollbarer Chat-Verlauf, nimmt den restlichen Platz ein */
+.verlauf {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hinweis {
+  color: var(--text);
+  text-align: center;
+  margin-top: 40px;
+}
+
+.nachricht {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+}
+
+.nachricht.frage {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.nachricht.antwort {
+  align-self: flex-start;
+}
+
+.blase {
+  padding: 10px 14px;
+  border-radius: 14px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.frage .blase {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.antwort .blase {
+  background: var(--code-bg);
+  color: var(--text-h);
+  border-bottom-left-radius: 4px;
+}
+
+.tippt {
+  letter-spacing: 3px;
+}
+
+.quellen {
+  font-size: 12px;
+  color: var(--text);
+  margin-top: 6px;
+}
+
+.quelle {
+  display: inline-block;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: 2px 4px 0 0;
+}
+
+.fehler {
+  color: #d33;
+  font-size: 14px;
+  align-self: center;
+}
+
+/* Eingabezeile unten fixiert */
+.eingabezeile {
+  display: flex;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.eingabezeile input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.eingabezeile input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.eingabezeile button {
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.eingabezeile button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

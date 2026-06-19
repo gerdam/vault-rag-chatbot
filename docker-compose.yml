@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"          # Host 8000 -> Container 8000 (Browser + Frontend erreichen es hier)
+    env_file:
+      - ./backend/.env       # bringt ANTHROPIC_API_KEY (nicht ins Image gebacken)
+    environment:
+      - CHROMA_PATH=/data/chroma   # ueberschreibt .env; load_dotenv override-t echte Env-Vars NICHT
+      - N_RESULTS=5
+    volumes:
+      - ./backend/chroma_data:/data/chroma   # bestehender Index (36.227 Chunks) als Volume
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000   # Build-Zeit-URL fuer den Browser
+    ports:
+      - "5173:80"            # Host 5173 -> nginx Port 80; Aufruf weiterhin http://localhost:5173
+    depends_on:
+      - backend              # startet Backend zuerst (wartet aber nicht auf "gesund")
