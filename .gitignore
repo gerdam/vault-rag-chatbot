@@ -3,6 +3,12 @@
 *.env
 !.env.example          # Vorlage OHNE echten Key darf rein
 
+.env
+**/__pycache__/
+**/node_modules/
+**/chroma_data/
+**/dist/
+
 # === Python ===
 backend/.venv/
 __pycache__/
