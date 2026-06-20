@@ -5,6 +5,8 @@ auf Basis eines persönlichen Obsidian-Vaults** beantwortet. Frage stellen →
 relevante Notiz-Ausschnitte werden aus einer Vektordatenbank geholt → Claude
 formuliert daraus eine Antwort **mit Quellenangabe**.
 
+> Produkt A von 3 im Rahmen der Lern-Roadmap "AI-first Fullstack-Informatiker bis Ende 2027" (Phase 3 — "3 fertige deploybare Produkte").
+
 ## Architektur
 
 ```
@@ -29,6 +31,8 @@ zurück an den Browser
 | Backend | FastAPI + uvicorn | `backend/` |
 | Vektor-DB | ChromaDB (persistent, lokal) | `backend/chroma_data/` |
 | LLM | Anthropic Claude | — |
+
+Der Browser läuft außerhalb des Docker-Netzwerks und kennt den Compose-Service-Namen `backend` nicht. Deshalb wird die Backend-URL (`http://localhost:8000`) dem Frontend-Image schon beim Build als `VITE_API_URL` mitgegeben (siehe `docker-compose.yml`) — zur Laufzeit im Browser muss es immer der host-exponierte Port sein, nie der Service-Name.
 
 ## Voraussetzungen
 
@@ -86,6 +90,27 @@ npm run dev        # → http://localhost:5173
 | `GET` | `/health` | Status + Anzahl indexierter Chunks |
 | `POST` | `/chat` | Body `{ "message": "..." }` → `{ "antwort": "...", "quellen": [...] }` |
 
+Statuscodes: `200` Erfolg · `422` ungültige Eingabe (Pydantic-Validierung lehnt den Request vor Funktionsaufruf ab) · `503` Vault noch nicht indexiert.
+
+## Projektstruktur
+
+```
+vault-rag-chatbot/
+├── backend/
+│   ├── main.py            # FastAPI App: /health, /chat
+│   ├── index.py           # Vault einlesen, chunken, in ChromaDB schreiben
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   ├── .env                # nicht committen
+│   └── chroma_data/         # ChromaDB-Index (nicht committen)
+├── frontend/
+│   ├── src/
+│   ├── Dockerfile           # Multi-Stage: Node-Build → nginx
+│   └── nginx.conf
+├── docker-compose.yml
+└── .gitignore
+```
+
 ## Bekannte Grenzen / Roadmap
 
 - [ ] **Auto-Re-Index** — derzeit muss `index.py` nach Vault-Änderungen manuell laufen
@@ -93,6 +118,10 @@ npm run dev        # → http://localhost:5173
 - [ ] **Konversations-Gedächtnis** — jede Frage ist isoliert, Verlauf wird nicht mitgeschickt
 - [ ] **CORS einschränken** — aktuell `allow_origins=["*"]`, vor echtem Deploy begrenzen
 - [ ] **Header-basiertes Chunking** — derzeit feste Zeichengrenzen statt Schnitt an `##`
+
+## Status
+
+MVP funktionsfähig — Indexierung, Chat-Endpoint, Frontend und Docker-Compose-Setup lokal getestet. Repository live: [github.com/gerdam/vault-rag-chatbot](https://github.com/gerdam/vault-rag-chatbot). Offen: Screenshot/Demo fürs Portfolio.
 
 ## Lizenz
 
