@@ -4,12 +4,6 @@ import "./App.css";
 // Basis-URL des FastAPI-Backends. Spaeter via .env (VITE_API_URL) konfigurierbar.
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
-// --- Typen: spiegeln das Pydantic-Schema im Backend (ChatResponse) ---
-interface ChatResponse {
-  antwort: string;
-  quellen: string[];
-}
-
 // Eine Nachricht in der Chat-Historie. "frage" = User, "antwort" = Bot.
 interface Message {
   rolle: "frage" | "antwort";
@@ -34,33 +28,77 @@ function App() {
     const frage = eingabe.trim();
     if (!frage || laedt) return;
 
-    // User-Nachricht sofort anzeigen, Eingabefeld leeren.
-    setVerlauf((v) => [...v, { rolle: "frage", text: frage }]);
+    // User-Nachricht + leere Antwort-Blase (waechst gleich) anlegen.
+    setVerlauf((v) => [
+      ...v,
+      { rolle: "frage", text: frage },
+      { rolle: "antwort", text: "", quellen: [] },
+    ]);
     setEingabe("");
     setLaedt(true);
     setFehler(null);
 
+    // Haengt Text an die LETZTE Nachricht (die Antwort-Blase) an.
+    const anAntwortAnhaengen = (text: string) =>
+      setVerlauf((v) => {
+        const kopie = [...v];
+        const letzte = kopie[kopie.length - 1];
+        kopie[kopie.length - 1] = { ...letzte, text: letzte.text + text };
+        return kopie;
+      });
+
+    const setzeQuellen = (quellen: string[]) =>
+      setVerlauf((v) => {
+        const kopie = [...v];
+        const letzte = kopie[kopie.length - 1];
+        kopie[kopie.length - 1] = { ...letzte, quellen };
+        return kopie;
+      });
+
     try {
-      // POST an das Backend. fetch ist asynchron -> await.
-      const res = await fetch(`${API_URL}/chat`, {
+      const res = await fetch(`${API_URL}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: frage }),
       });
 
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         throw new Error(`Server antwortete mit ${res.status}`);
       }
 
-      const daten: ChatResponse = await res.json();
-      setVerlauf((v) => [
-        ...v,
-        { rolle: "antwort", text: daten.antwort, quellen: daten.quellen },
-      ]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let puffer = "";
+
+      // Stream lesen, bis er endet.
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        puffer += decoder.decode(value, { stream: true });
+
+        // Vollstaendige SSE-Bloecke sind durch eine Leerzeile getrennt.
+        const bloecke = puffer.split("\n\n");
+        puffer = bloecke.pop() ?? ""; // letzter (evtl. unvollstaendiger) Block bleibt im Puffer
+
+        for (const block of bloecke) {
+          if (!block.trim()) continue;
+          let eventName = "";
+          let dataJson = "";
+          for (const zeile of block.split("\n")) {
+            if (zeile.startsWith("event:")) eventName = zeile.slice(6).trim();
+            else if (zeile.startsWith("data:")) dataJson = zeile.slice(5).trim();
+          }
+          const daten = dataJson ? JSON.parse(dataJson) : {};
+
+          if (eventName === "sources") setzeQuellen(daten.quellen ?? []);
+          else if (eventName === "token") anAntwortAnhaengen(daten.text ?? "");
+          else if (eventName === "error") throw new Error(daten.detail ?? "Stream-Fehler");
+          // "done" -> Schleife endet ohnehin am Stream-Ende
+        }
+      }
     } catch (e) {
       setFehler(e instanceof Error ? e.message : "Unbekannter Fehler");
     } finally {
-      // finally laeuft immer -> Ladezustand sicher zuruecksetzen.
       setLaedt(false);
     }
   }
@@ -81,7 +119,14 @@ function App() {
 
         {verlauf.map((m, i) => (
           <div key={i} className={`nachricht ${m.rolle}`}>
-            <div className="blase">{m.text}</div>
+            {/* Leere Antwort-Blase zeigt "…" bis das erste Token eintrifft. */}
+            <div
+              className={`blase${
+                m.rolle === "antwort" && m.text === "" ? " tippt" : ""
+              }`}
+            >
+              {m.rolle === "antwort" && m.text === "" ? "…" : m.text}
+            </div>
             {m.quellen && m.quellen.length > 0 && (
               <div className="quellen">
                 Quellen:{" "}
@@ -95,11 +140,6 @@ function App() {
           </div>
         ))}
 
-        {laedt && (
-          <div className="nachricht antwort">
-            <div className="blase tippt">…</div>
-          </div>
-        )}
         {fehler && <div className="fehler">Fehler: {fehler}</div>}
         <div ref={endeRef} />
       </div>
