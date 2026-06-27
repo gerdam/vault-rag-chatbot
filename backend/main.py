@@ -154,18 +154,28 @@ async def chat_stream(
     req: ChatRequest,
     col=Depends(get_collection),
     claude: anthropic.AsyncAnthropic = Depends(get_async_claude),
+    db: sqlite3.Connection = Depends(history.get_history_db),
 ):
+    # Verlauf + Retrieval-Query vor dem Streamen bestimmen (kleine sync-Reads).
+    # Die db-Verbindung bleibt offen, bis die StreamingResponse fertig ist —
+    # daher kann der Generator weiter unten gefahrlos speichern.
+    verlauf = history.load_history(db, req.session_id, history.HISTORY_MAX_TURNS * 2)
+    retrieval_query = history.build_retrieval_query(verlauf, req.message)
+
     async def event_stream():
         # 1. Retrieval — sync-Lib bewusst in den Threadpool ausgelagert
         results = await run_in_threadpool(
-            col.query, query_texts=[req.message], n_results=N_RESULTS
+            col.query, query_texts=[retrieval_query], n_results=N_RESULTS
         )
         chunks: list[str] = results["documents"][0]
         metas: list[dict] = results["metadatas"][0]
 
         if not chunks:
+            antwort = "Keine relevanten Notizen gefunden."
             yield _sse("sources", {"quellen": []})
-            yield _sse("token", {"text": "Keine relevanten Notizen gefunden."})
+            yield _sse("token", {"text": antwort})
+            history.save_message(db, req.session_id, "user", req.message)
+            history.save_message(db, req.session_id, "assistant", antwort)
             yield _sse("done", {})
             return
 
@@ -175,7 +185,8 @@ async def chat_stream(
 
         kontext = "\n\n---\n\n".join(chunks)
 
-        # 3. Tokens von Claude streamen
+        # 3. Tokens streamen und parallel zur vollständigen Antwort sammeln
+        teile: list[str] = []
         try:
             async with claude.messages.stream(
                 model="claude-sonnet-4-6",
@@ -187,14 +198,18 @@ async def chat_stream(
                     "Antworte auf Deutsch.\n\n"
                     f"NOTIZEN:\n{kontext}"
                 ),
-                messages=[{"role": "user", "content": req.message}],
+                messages=history.build_messages(verlauf, req.message),
             ) as stream:
                 async for text in stream.text_stream:
+                    teile.append(text)
                     yield _sse("token", {"text": text})
         except Exception as e:  # noqa: BLE001 — Fehler an den Client durchreichen
             yield _sse("error", {"detail": str(e)})
-            return
+            return  # bei Fehler NICHT speichern
 
+        # 4. Erst nach erfolgreichem Stream den Turn persistieren
+        history.save_message(db, req.session_id, "user", req.message)
+        history.save_message(db, req.session_id, "assistant", "".join(teile))
         yield _sse("done", {})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -160,7 +160,7 @@ def _parse_sse(text):
     return events
 
 
-def test_chat_stream_sendet_sources_dann_tokens_dann_done(client):
+def test_chat_stream_sendet_sources_dann_tokens_dann_done(client, history_db):
     docs = ["Rust ist speichersicher."]
     metas = [{"datei": "rust.md"}, {"datei": "rust.md"}]  # Duplikat -> dedupliziert
     texte = ["Laut den Notizen ", "ist Rust speichersicher."]
@@ -168,7 +168,7 @@ def test_chat_stream_sendet_sources_dann_tokens_dann_done(client):
     main.app.dependency_overrides[main.get_collection] = lambda: FakeCollection(docs, metas)
     main.app.dependency_overrides[main.get_async_claude] = lambda: FakeAsyncClaude(texte)
 
-    r = client.post("/chat/stream", json={"message": "Ist Rust sicher?"})
+    r = client.post("/chat/stream", json={"message": "Ist Rust sicher?", "session_id": "s7"})
 
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/event-stream")
@@ -178,6 +178,60 @@ def test_chat_stream_sendet_sources_dann_tokens_dann_done(client):
     token_texte = [d["text"] for (e, d) in events if e == "token"]
     assert "".join(token_texte) == "Laut den Notizen ist Rust speichersicher."
     assert events[-1] == ("done", {})
+
+    # nach 'done' ist der Turn persistiert: user-Frage + vollständige Antwort
+    conn = sqlite3.connect(history_db)
+    rows = conn.execute(
+        "SELECT role, content FROM messages WHERE session_id='s7' ORDER BY id"
+    ).fetchall()
+    conn.close()
+    assert rows == [
+        ("user", "Ist Rust sicher?"),
+        ("assistant", "Laut den Notizen ist Rust speichersicher."),
+    ]
+
+
+# --- Async-Fake, der mitten im Stream wirft -----------------------------
+class _FailingAsyncStream:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    @property
+    def text_stream(self):
+        async def gen():
+            raise RuntimeError("Boom")
+            yield ""  # pragma: no cover — macht gen() zur async-Generator-Funktion
+        return gen()
+
+
+class _FailingAsyncMessages:
+    def stream(self, **kwargs):
+        return _FailingAsyncStream()
+
+
+class FailingAsyncClaude:
+    messages = _FailingAsyncMessages()
+
+
+def test_chat_stream_speichert_nichts_bei_fehler(client, history_db):
+    main.app.dependency_overrides[main.get_collection] = lambda: FakeCollection(
+        ["X"], [{"datei": "a.md"}]
+    )
+    main.app.dependency_overrides[main.get_async_claude] = lambda: FailingAsyncClaude()
+
+    r = client.post("/chat/stream", json={"message": "Frage", "session_id": "s9"})
+
+    events = _parse_sse(r.text)
+    assert any(e == "error" for (e, _) in events)
+
+    # bei Fehler darf KEIN Turn gespeichert sein
+    conn = sqlite3.connect(history_db)
+    rows = conn.execute("SELECT * FROM messages WHERE session_id='s9'").fetchall()
+    conn.close()
+    assert rows == []
 
 
 # --- Aufzeichnende Fakes für den Memory-Test -----------------------------
