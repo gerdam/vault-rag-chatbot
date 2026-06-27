@@ -65,3 +65,20 @@ def load_history(conn: sqlite3.Connection, session_id: str, limit: int) -> list[
     ).fetchall()
     rows.reverse()
     return [{"role": role, "content": content} for role, content in rows]
+
+
+def build_retrieval_query(history: list[dict], new_message: str,
+                          n: int = RETRIEVAL_CONTEXT_TURNS) -> str:
+    """Verkettet die letzten n User-Fragen aus history + new_message.
+
+    Damit behält das Retrieval bei kurzen Folgefragen ('und warum?') Kontext —
+    der Embedding-Vektor trifft sonst die falschen Chunks.
+    """
+    user_msgs = [m["content"] for m in history if m["role"] == "user"]
+    letzte = user_msgs[-n:]
+    return " ".join([*letzte, new_message])
+
+
+def build_messages(history: list[dict], new_message: str) -> list[dict]:
+    """history (user/assistant) + neue User-Nachricht fürs Anthropic-Array."""
+    return [*history, {"role": "user", "content": new_message}]
