@@ -29,7 +29,7 @@
 - Create: `backend/history.py`
 - Test: `backend/tests/test_history.py`
 
-- [ ] **Step 1: Failing test schreiben** — `backend/tests/test_history.py`
+- [x] **Step 1: Failing test schreiben** — `backend/tests/test_history.py`
 
 ```python
 """
@@ -75,12 +75,12 @@ def test_load_history_kappt_auf_limit_chronologisch(tmp_path):
     assert [m["content"] for m in h] == ["m3", "m4"]
 ```
 
-- [ ] **Step 2: Test laufen lassen, Fehlschlag prüfen**
+- [x] **Step 2: Test laufen lassen, Fehlschlag prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_history.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'history'` (bzw. `AttributeError`).
 
-- [ ] **Step 3: history.py mit DB-Schicht implementieren** — `backend/history.py`
+- [x] **Step 3: history.py mit DB-Schicht implementieren** — `backend/history.py`
 
 ```python
 """
@@ -151,12 +151,12 @@ def load_history(conn: sqlite3.Connection, session_id: str, limit: int) -> list[
     return [{"role": r, "content": c} for (r, c) in reversed(rows)]
 ```
 
-- [ ] **Step 4: Tests laufen lassen, grün prüfen**
+- [x] **Step 4: Tests laufen lassen, grün prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_history.py -v`
 Expected: PASS — 3 Tests grün.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/history.py backend/tests/test_history.py
@@ -171,7 +171,7 @@ git commit -m "[backend] history: SQLite-Schicht fuer Session-Verlauf (save/load
 - Modify: `backend/history.py`
 - Test: `backend/tests/test_history.py`
 
-- [ ] **Step 1: Failing tests anhängen** — ans Ende von `backend/tests/test_history.py`
+- [x] **Step 1: Failing tests anhängen** — ans Ende von `backend/tests/test_history.py`
 
 ```python
 def test_build_retrieval_query_verkettet_letzte_user_fragen():
@@ -208,12 +208,12 @@ def test_build_messages_haengt_neue_user_nachricht_an():
     ]
 ```
 
-- [ ] **Step 2: Test laufen lassen, Fehlschlag prüfen**
+- [x] **Step 2: Test laufen lassen, Fehlschlag prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_history.py -k build -v`
 Expected: FAIL — `AttributeError: module 'history' has no attribute 'build_retrieval_query'`.
 
-- [ ] **Step 3: Helfer in history.py ergänzen** — ans Ende von `backend/history.py`
+- [x] **Step 3: Helfer in history.py ergänzen** — ans Ende von `backend/history.py`
 
 ```python
 def build_retrieval_query(history: list[dict], new_message: str,
@@ -233,12 +233,12 @@ def build_messages(history: list[dict], new_message: str) -> list[dict]:
     return [*history, {"role": "user", "content": new_message}]
 ```
 
-- [ ] **Step 4: Tests laufen lassen, grün prüfen**
+- [x] **Step 4: Tests laufen lassen, grün prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_history.py -v`
 Expected: PASS — 7 Tests grün.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/history.py backend/tests/test_history.py
@@ -253,7 +253,7 @@ git commit -m "[backend] history: build_retrieval_query + build_messages"
 - Modify: `backend/main.py` (Imports, `ChatRequest`, `chat`-Endpoint)
 - Modify: `backend/tests/test_chat.py` (bestehende /chat-Tests + Memory-Test)
 
-- [ ] **Step 1: Bestehende /chat-Tests anpassen + DB-Fixture + Memory-Test** — `backend/tests/test_chat.py`
+- [x] **Step 1: Bestehende /chat-Tests anpassen + DB-Fixture + Memory-Test** — `backend/tests/test_chat.py`
 
 Oben bei den Imports `sqlite3` und `history` ergänzen:
 
@@ -394,12 +394,12 @@ def test_chat_merkt_sich_verlauf_ueber_zwei_requests(client, history_db):
     assert n == 4
 ```
 
-- [ ] **Step 2: Tests laufen lassen, Fehlschlag prüfen**
+- [x] **Step 2: Tests laufen lassen, Fehlschlag prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_chat.py -k "chat and not stream" -v`
 Expected: FAIL — `session_id`-Pflichtfeld fehlt noch in `ChatRequest` (422) bzw. Endpoint nutzt history noch nicht.
 
-- [ ] **Step 3: main.py — Imports, ChatRequest, /chat-Endpoint**
+- [x] **Step 3: main.py — Imports, ChatRequest, /chat-Endpoint**
 
 Imports ergänzen (nach `import os`):
 
@@ -463,12 +463,12 @@ def chat(
     )
 ```
 
-- [ ] **Step 4: Tests laufen lassen, grün prüfen**
+- [x] **Step 4: Tests laufen lassen, grün prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_chat.py -k "chat and not stream" -v`
 Expected: PASS — die drei /chat-Tests + Memory-Test grün.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/main.py backend/tests/test_chat.py
@@ -483,7 +483,7 @@ git commit -m "[backend] chat: Session-Verlauf in /chat (session_id, Retrieval-K
 - Modify: `backend/main.py` (`chat_stream`-Endpoint)
 - Modify: `backend/tests/test_chat.py` (Streaming-Test erweitern + Fehler-Test)
 
-- [ ] **Step 1: Bestehenden Streaming-Test erweitern + Fehler-Test** — `backend/tests/test_chat.py`
+- [x] **Step 1: Bestehenden Streaming-Test erweitern + Fehler-Test** — `backend/tests/test_chat.py`
 
 Den bestehenden `test_chat_stream_sendet_sources_dann_tokens_dann_done` vollständig ersetzen durch (Body um `session_id`, Fixture `history_db`, Persistenz-Check):
 
@@ -565,12 +565,12 @@ def test_chat_stream_speichert_nichts_bei_fehler(client, history_db):
     assert rows == []
 ```
 
-- [ ] **Step 2: Tests laufen lassen, Fehlschlag prüfen**
+- [x] **Step 2: Tests laufen lassen, Fehlschlag prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest tests/test_chat.py -k stream -v`
 Expected: FAIL — `/chat/stream` verlangt `session_id` noch nicht / speichert noch nicht.
 
-- [ ] **Step 3: main.py — chat_stream-Endpoint ersetzen**
+- [x] **Step 3: main.py — chat_stream-Endpoint ersetzen**
 
 ```python
 @app.post("/chat/stream")
@@ -638,12 +638,12 @@ async def chat_stream(
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 ```
 
-- [ ] **Step 4: Gesamte Backend-Suite laufen lassen, grün prüfen**
+- [x] **Step 4: Gesamte Backend-Suite laufen lassen, grün prüfen**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest -v`
 Expected: PASS — alle Tests aus `test_history.py` + `test_chat.py` grün.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/main.py backend/tests/test_chat.py
@@ -657,7 +657,7 @@ git commit -m "[backend] chat-stream: Session-Verlauf + Speichern nach done"
 **Files:**
 - Modify: `frontend/src/App.tsx`
 
-- [ ] **Step 1: session_id-Ref anlegen** — in `App()`, nach den `useState`-Zeilen (nach `const [fehler, ...]`):
+- [x] **Step 1: session_id-Ref anlegen** — in `App()`, nach den `useState`-Zeilen (nach `const [fehler, ...]`):
 
 ```tsx
   // Eine Session-ID pro Chat. Frontend generiert sie; Backend nutzt sie als
@@ -665,13 +665,13 @@ git commit -m "[backend] chat-stream: Session-Verlauf + Speichern nach done"
   const sessionId = useRef(crypto.randomUUID());
 ```
 
-- [ ] **Step 2: session_id im Request mitschicken** — im `fetch`-Body von `frageSenden`:
+- [x] **Step 2: session_id im Request mitschicken** — im `fetch`-Body von `frageSenden`:
 
 ```tsx
         body: JSON.stringify({ message: frage, session_id: sessionId.current }),
 ```
 
-- [ ] **Step 3: „Neuer Chat" — Handler ergänzen** — in `App()`, vor dem `return`:
+- [x] **Step 3: „Neuer Chat" — Handler ergänzen** — in `App()`, vor dem `return`:
 
 ```tsx
   // Startet eine frische Session: neue ID + leerer Verlauf.
@@ -683,7 +683,7 @@ git commit -m "[backend] chat-stream: Session-Verlauf + Speichern nach done"
   }
 ```
 
-- [ ] **Step 4: „Neuer Chat"-Button im Header rendern** — im `<header>` nach dem `<p className="untertitel">…</p>`:
+- [x] **Step 4: „Neuer Chat"-Button im Header rendern** — im `<header>` nach dem `<p className="untertitel">…</p>`:
 
 ```tsx
         <button className="neuer-chat" onClick={neuerChat} disabled={laedt}>
@@ -691,12 +691,12 @@ git commit -m "[backend] chat-stream: Session-Verlauf + Speichern nach done"
         </button>
 ```
 
-- [ ] **Step 5: Build prüfen**
+- [x] **Step 5: Build prüfen**
 
 Run: `cd frontend && npm run build`
 Expected: Build erfolgreich, keine TypeScript-Fehler (`crypto.randomUUID` ist typisiert).
 
-- [ ] **Step 6: Manuell verifizieren (Browser)**
+- [x] **Step 6: Manuell verifizieren (Browser)**
 
 Backend starten: `cd backend && .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000`
 Frontend: `cd frontend && npm run dev` → http://localhost:5173
@@ -706,7 +706,7 @@ Prüfen:
 2. Folgefrage ohne Namen (z. B. „und warum?") → Antwort bezieht sich auf das vorige Thema.
 3. „Neuer Chat" → Verlauf leer, neue Session (Folgefrage hat keinen Kontext mehr).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend/src/App.tsx
@@ -720,7 +720,7 @@ git commit -m "[frontend] chat: session_id (UUID) mitschicken + Neuer-Chat-Butto
 **Files:**
 - Modify: `docker-compose.yml`
 
-- [ ] **Step 1: Volume + HISTORY_DB_PATH ergänzen** — im `backend`-Service:
+- [x] **Step 1: Volume + HISTORY_DB_PATH ergänzen** — im `backend`-Service:
 
 `environment` um eine Zeile erweitern:
 
@@ -741,7 +741,7 @@ git commit -m "[frontend] chat: session_id (UUID) mitschicken + Neuer-Chat-Butto
 
 > Hinweis: `/data` umfasst dann sowohl `chroma` als auch `history.db`. Falls der bestehende `chroma_data`-Mount Vorrang behalten soll, ist die Reihenfolge unkritisch — Docker mountet beide Pfade; `history.db` liegt unter `/data/history.db`, der Index unter `/data/chroma`.
 
-- [ ] **Step 2: .gitignore prüfen/ergänzen** — sicherstellen, dass die DB nicht eingecheckt wird:
+- [x] **Step 2: .gitignore prüfen/ergänzen** — sicherstellen, dass die DB nicht eingecheckt wird:
 
 Run: `cd backend && git check-ignore history.db data/history.db`
 Falls nichts ausgegeben wird (= nicht ignoriert), in `backend/.gitignore` ergänzen:
@@ -751,14 +751,14 @@ history.db
 data/
 ```
 
-- [ ] **Step 3: Compose-Build/Up testen**
+- [x] **Step 3: Compose-Build/Up testen**
 
 Run: `docker compose up -d --build`
 Dann: `curl http://localhost:8000/health` → `{"status":"ok","chunks":36227}` (oder aktueller Wert).
 Im Browser http://localhost:5173 zwei Folgefragen stellen, dann `docker compose restart backend`, prüfen dass der Verlauf nach Neustart noch wirkt (gleiche Session-ID → Button NICHT drücken).
 Aufräumen optional: `docker compose down`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml backend/.gitignore
@@ -771,17 +771,17 @@ git commit -m "[devops] compose: History-DB als persistentes Volume (HISTORY_DB_
 
 **Files:** keine (nur Verifikation)
 
-- [ ] **Step 1: Vollständige Backend-Suite**
+- [x] **Step 1: Vollständige Backend-Suite**
 
 Run: `cd backend && .venv\Scripts\python.exe -m pytest -v`
 Expected: PASS — alle Tests grün (test_history.py: 7, test_chat.py: 6).
 
-- [ ] **Step 2: Frontend-Build**
+- [x] **Step 2: Frontend-Build**
 
 Run: `cd frontend && npm run build`
 Expected: erfolgreich, keine TS-Fehler.
 
-- [ ] **Step 3: Spec-Abgleich** — kurz gegen `docs/superpowers/specs/2026-06-25-konversations-gedaechtnis-design.md` prüfen, dass alle „Getroffene Entscheidungen" umgesetzt sind. Keine Code-Änderung, nur Häkchen.
+- [x] **Step 3: Spec-Abgleich** — kurz gegen `docs/superpowers/specs/2026-06-25-konversations-gedaechtnis-design.md` prüfen, dass alle „Getroffene Entscheidungen" umgesetzt sind. Keine Code-Änderung, nur Häkchen.
 
 ---
 
