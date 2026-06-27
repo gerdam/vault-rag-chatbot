@@ -5,6 +5,7 @@ Start: uvicorn main:app --reload
 
 import json
 import os
+import sqlite3
 from functools import lru_cache
 
 import anthropic
@@ -15,6 +16,8 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+import history
 
 load_dotenv()
 
@@ -65,6 +68,7 @@ def get_collection(client: chromadb.ClientAPI = Depends(get_chroma_client)):
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str
 
 
 class ChatResponse(BaseModel):
@@ -94,17 +98,21 @@ def chat(
     req: ChatRequest,
     col=Depends(get_collection),
     claude: anthropic.Anthropic = Depends(get_claude),
+    db: sqlite3.Connection = Depends(history.get_history_db),
 ):
+    verlauf = history.load_history(db, req.session_id, history.HISTORY_MAX_TURNS * 2)
+    retrieval_query = history.build_retrieval_query(verlauf, req.message)
+
     # 1. Relevante Chunks aus ChromaDB abrufen
-    results = col.query(query_texts=[req.message], n_results=N_RESULTS)
+    results = col.query(query_texts=[retrieval_query], n_results=N_RESULTS)
     chunks: list[str] = results["documents"][0]
     metas: list[dict] = results["metadatas"][0]
 
     if not chunks:
-        return ChatResponse(
-            antwort="Keine relevanten Notizen gefunden.",
-            quellen=[],
-        )
+        antwort = "Keine relevanten Notizen gefunden."
+        history.save_message(db, req.session_id, "user", req.message)
+        history.save_message(db, req.session_id, "assistant", antwort)
+        return ChatResponse(antwort=antwort, quellen=[])
 
     # 2. Kontext für Claude aufbauen
     kontext = "\n\n---\n\n".join(chunks)
@@ -120,11 +128,14 @@ def chat(
             "Antworte auf Deutsch.\n\n"
             f"NOTIZEN:\n{kontext}"
         ),
-        messages=[{"role": "user", "content": req.message}],
+        messages=history.build_messages(verlauf, req.message),
     )
+    antwort = response.content[0].text
+    history.save_message(db, req.session_id, "user", req.message)
+    history.save_message(db, req.session_id, "assistant", antwort)
 
     return ChatResponse(
-        antwort=response.content[0].text,
+        antwort=antwort,
         quellen=list({m["datei"] for m in metas}),  # dedupliziert
     )
 
