@@ -10,7 +10,6 @@ offline, schnell und kostenlos.
 import sqlite3
 
 import pytest
-from fastapi.testclient import TestClient
 
 import history
 import main
@@ -40,12 +39,6 @@ class _FakeMessages:
 
 class FakeClaude:
     messages = _FakeMessages()
-
-
-@pytest.fixture
-def client():
-    yield TestClient(main.app)
-    main.app.dependency_overrides.clear()  # nach jedem Test sauber zurücksetzen
 
 
 @pytest.fixture

@@ -24,12 +24,25 @@ load_dotenv()
 CHROMA_PATH = os.getenv("CHROMA_PATH", "./chroma_data")
 N_RESULTS = int(os.getenv("N_RESULTS", "5"))
 
+
+def parse_allowed_origins(env_value: str | None) -> list[str]:
+    """ALLOWED_ORIGINS-Env (kommagetrennt) -> Liste, Default lokale Dev-Origin.
+
+    allow_origins=["*"] ist keine Schutzmassnahme, sondern deren Abschaltung:
+    jede Webseite koennte sonst per fetch() im Browser eines Besuchers diesen
+    (bezahlten Claude-API-) Endpoint aufrufen.
+    """
+    if not env_value:
+        return ["http://localhost:5173"]
+    return [origin.strip() for origin in env_value.split(",")]
+
+
 app = FastAPI(title="Vault RAG Chatbot", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=parse_allowed_origins(os.getenv("ALLOWED_ORIGINS")),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 

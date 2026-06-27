@@ -9,6 +9,7 @@ services:
       - CHROMA_PATH=/data/chroma   # ueberschreibt .env; load_dotenv override-t echte Env-Vars NICHT
       - N_RESULTS=5
       - HISTORY_DB_PATH=/data/history.db   # Verlauf-DB im gemounteten /data-Verzeichnis
+      - ALLOWED_ORIGINS=http://localhost:5173   # Allowlist statt allow_origins=["*"]; echte Domain bei Deploy ergaenzen
     volumes:
       - ./backend/chroma_data:/data/chroma   # bestehender Index (36.227 Chunks) als Volume
       - ./backend/data:/data                 # persistente History-DB (history.db landet hier)
