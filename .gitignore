@@ -17,6 +17,10 @@ __pycache__/
 # === ChromaDB-Index (138 MB Daten, gehoeren nicht in Git) ===
 backend/chroma_data/
 
+# === Konversations-Verlauf (SQLite, lokale/Container-Laufzeitdaten) ===
+backend/history.db
+backend/data/
+
 # === Node / Frontend ===
 frontend/node_modules/
 frontend/dist/

@@ -5,6 +5,7 @@ Start: uvicorn main:app --reload
 
 import json
 import os
+import sqlite3
 from functools import lru_cache
 
 import anthropic
@@ -16,17 +17,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import history
+
 load_dotenv()
 
 CHROMA_PATH = os.getenv("CHROMA_PATH", "./chroma_data")
 N_RESULTS = int(os.getenv("N_RESULTS", "5"))
 
+
+def parse_allowed_origins(env_value: str | None) -> list[str]:
+    """ALLOWED_ORIGINS-Env (kommagetrennt) -> Liste, Default lokale Dev-Origin.
+
+    allow_origins=["*"] ist keine Schutzmassnahme, sondern deren Abschaltung:
+    jede Webseite koennte sonst per fetch() im Browser eines Besuchers diesen
+    (bezahlten Claude-API-) Endpoint aufrufen.
+    """
+    if not env_value:
+        return ["http://localhost:5173"]
+    return [origin.strip() for origin in env_value.split(",")]
+
+
 app = FastAPI(title="Vault RAG Chatbot", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=parse_allowed_origins(os.getenv("ALLOWED_ORIGINS")),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -65,6 +81,7 @@ def get_collection(client: chromadb.ClientAPI = Depends(get_chroma_client)):
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str
 
 
 class ChatResponse(BaseModel):
@@ -94,17 +111,21 @@ def chat(
     req: ChatRequest,
     col=Depends(get_collection),
     claude: anthropic.Anthropic = Depends(get_claude),
+    db: sqlite3.Connection = Depends(history.get_history_db),
 ):
+    verlauf = history.load_history(db, req.session_id, history.HISTORY_MAX_TURNS * 2)
+    retrieval_query = history.build_retrieval_query(verlauf, req.message)
+
     # 1. Relevante Chunks aus ChromaDB abrufen
-    results = col.query(query_texts=[req.message], n_results=N_RESULTS)
+    results = col.query(query_texts=[retrieval_query], n_results=N_RESULTS)
     chunks: list[str] = results["documents"][0]
     metas: list[dict] = results["metadatas"][0]
 
     if not chunks:
-        return ChatResponse(
-            antwort="Keine relevanten Notizen gefunden.",
-            quellen=[],
-        )
+        antwort = "Keine relevanten Notizen gefunden."
+        history.save_message(db, req.session_id, "user", req.message)
+        history.save_message(db, req.session_id, "assistant", antwort)
+        return ChatResponse(antwort=antwort, quellen=[])
 
     # 2. Kontext für Claude aufbauen
     kontext = "\n\n---\n\n".join(chunks)
@@ -120,11 +141,14 @@ def chat(
             "Antworte auf Deutsch.\n\n"
             f"NOTIZEN:\n{kontext}"
         ),
-        messages=[{"role": "user", "content": req.message}],
+        messages=history.build_messages(verlauf, req.message),
     )
+    antwort = response.content[0].text
+    history.save_message(db, req.session_id, "user", req.message)
+    history.save_message(db, req.session_id, "assistant", antwort)
 
     return ChatResponse(
-        antwort=response.content[0].text,
+        antwort=antwort,
         quellen=list({m["datei"] for m in metas}),  # dedupliziert
     )
 
@@ -143,18 +167,28 @@ async def chat_stream(
     req: ChatRequest,
     col=Depends(get_collection),
     claude: anthropic.AsyncAnthropic = Depends(get_async_claude),
+    db: sqlite3.Connection = Depends(history.get_history_db),
 ):
+    # Verlauf + Retrieval-Query vor dem Streamen bestimmen (kleine sync-Reads).
+    # Die db-Verbindung bleibt offen, bis die StreamingResponse fertig ist —
+    # daher kann der Generator weiter unten gefahrlos speichern.
+    verlauf = history.load_history(db, req.session_id, history.HISTORY_MAX_TURNS * 2)
+    retrieval_query = history.build_retrieval_query(verlauf, req.message)
+
     async def event_stream():
         # 1. Retrieval — sync-Lib bewusst in den Threadpool ausgelagert
         results = await run_in_threadpool(
-            col.query, query_texts=[req.message], n_results=N_RESULTS
+            col.query, query_texts=[retrieval_query], n_results=N_RESULTS
         )
         chunks: list[str] = results["documents"][0]
         metas: list[dict] = results["metadatas"][0]
 
         if not chunks:
+            antwort = "Keine relevanten Notizen gefunden."
             yield _sse("sources", {"quellen": []})
-            yield _sse("token", {"text": "Keine relevanten Notizen gefunden."})
+            yield _sse("token", {"text": antwort})
+            history.save_message(db, req.session_id, "user", req.message)
+            history.save_message(db, req.session_id, "assistant", antwort)
             yield _sse("done", {})
             return
 
@@ -164,7 +198,8 @@ async def chat_stream(
 
         kontext = "\n\n---\n\n".join(chunks)
 
-        # 3. Tokens von Claude streamen
+        # 3. Tokens streamen und parallel zur vollständigen Antwort sammeln
+        teile: list[str] = []
         try:
             async with claude.messages.stream(
                 model="claude-sonnet-4-6",
@@ -176,14 +211,18 @@ async def chat_stream(
                     "Antworte auf Deutsch.\n\n"
                     f"NOTIZEN:\n{kontext}"
                 ),
-                messages=[{"role": "user", "content": req.message}],
+                messages=history.build_messages(verlauf, req.message),
             ) as stream:
                 async for text in stream.text_stream:
+                    teile.append(text)
                     yield _sse("token", {"text": text})
         except Exception as e:  # noqa: BLE001 — Fehler an den Client durchreichen
             yield _sse("error", {"detail": str(e)})
-            return
+            return  # bei Fehler NICHT speichern
 
+        # 4. Erst nach erfolgreichem Stream den Turn persistieren
+        history.save_message(db, req.session_id, "user", req.message)
+        history.save_message(db, req.session_id, "assistant", "".join(teile))
         yield _sse("done", {})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

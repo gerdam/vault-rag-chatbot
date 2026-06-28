@@ -18,6 +18,10 @@ function App() {
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
 
+  // Eine Session-ID pro Chat. Frontend generiert sie; Backend nutzt sie als
+  // Schlüssel für den gespeicherten Verlauf. crypto.randomUUID() ist im Browser nativ.
+  const sessionId = useRef(crypto.randomUUID());
+
   // Ref auf das Ende der Liste, um nach jeder Nachricht runterzuscrollen.
   const endeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -59,7 +63,7 @@ function App() {
       const res = await fetch(`${API_URL}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: frage }),
+        body: JSON.stringify({ message: frage, session_id: sessionId.current }),
       });
 
       if (!res.ok || !res.body) {
@@ -103,6 +107,14 @@ function App() {
     }
   }
 
+  // Startet eine frische Session: neue ID + leerer Verlauf.
+  function neuerChat() {
+    sessionId.current = crypto.randomUUID();
+    setVerlauf([]);
+    setFehler(null);
+    setEingabe("");
+  }
+
   return (
     <div className="app">
       <header>
@@ -110,6 +122,9 @@ function App() {
         <p className="untertitel">
           Fragen an deinen Wissens-Vault — beantwortet aus 36.227 Chunks.
         </p>
+        <button className="neuer-chat" onClick={neuerChat} disabled={laedt}>
+          Neuer Chat
+        </button>
       </header>
 
       <div className="verlauf">

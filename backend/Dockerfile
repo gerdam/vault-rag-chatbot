@@ -9,7 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Anwendungscode (chroma_data wird NICHT kopiert, sondern als Volume gemountet)
-COPY main.py index.py ./
+COPY main.py index.py history.py ./
 
 # Im Container auf allen Interfaces lauschen (0.0.0.0), nicht nur 127.0.0.1,
 # sonst ist der Port von ausserhalb des Containers nicht erreichbar.
